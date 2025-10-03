@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   BarChart,
   CartesianGrid,
@@ -7,19 +8,63 @@ import {
   Legend,
   Tooltip,
   Bar,
+  ResponsiveContainer,
 } from "recharts";
 import { monthNames } from "../../constants";
-import { ChartDataItem, DisplayMode, MonthlyData, Product } from "../../interfaces";
+import {
+  ChartDataItem,
+  DisplayMode,
+  MonthlyData,
+  Product,
+} from "../../interfaces";
 import { Container, Graph, Filter, GraphContainer, Label, Text } from "./style";
+import { getFilteredData, getNiceTickStep } from "../../utils/chartHelpers";
 
 const MainPage = () => {
   const [data, setData] = useState<ChartDataItem[]>([]);
-  const [displayMode, setDisplayMode] = useState<DisplayMode>("all");
+  const [displayMode, setDisplayMode] = useState<DisplayMode>(() => {
+    const saved = localStorage.getItem("displayMode");
+    return (saved as DisplayMode) ?? "all";
+  });
+
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    localStorage.setItem("displayMode", displayMode);
+  }, [displayMode]);
 
   const handleDisplayModeChange = (
     event: React.ChangeEvent<HTMLSelectElement>
   ) => {
     setDisplayMode(event.target.value as DisplayMode);
+  };
+
+  const handleBarClick = (barData: any, factoryKey: string) => {
+    const monthName = barData.name;
+    const monthNumber = monthNames.indexOf(monthName) + 1;
+
+    const fullEntry = data.find((d) => d.name === monthName);
+    if (!fullEntry) return;
+
+    let factoryId: number;
+    let product1Sum = 0;
+    let product2Sum = 0;
+
+    if (factoryKey.includes("А")) {
+      factoryId = 1;
+      product1Sum = fullEntry["Фабрика А (Product 1)"] ?? 0;
+      product2Sum = fullEntry["Фабрика А (Product 2)"] ?? 0;
+    } else if (factoryKey.includes("Б")) {
+      factoryId = 2;
+      product1Sum = fullEntry["Фабрика Б (Product 1)"] ?? 0;
+      product2Sum = fullEntry["Фабрика Б (Product 2)"] ?? 0;
+    } else {
+      return;
+    }
+
+    navigate(`/details/${factoryId}/${monthNumber}`, {
+      state: { product1Sum, product2Sum },
+    });
   };
 
   useEffect(() => {
@@ -37,7 +82,7 @@ const MainPage = () => {
             const dateParts = item.date.split("/");
             if (dateParts.length !== 3) return;
 
-            const [day, month, year] = dateParts;
+            const [, month] = dateParts;
             const monthIndex = parseInt(month) - 1;
 
             if (monthIndex < 0 || monthIndex >= monthNames.length) return;
@@ -86,33 +131,14 @@ const MainPage = () => {
     fetchData();
   }, []);
 
-  const getFilteredData = (): ChartDataItem[] => {
-    if (displayMode === "all") {
-      return data.map((item) => ({
-        name: item.name,
-        "Фабрика А":
-          (item["Фабрика А (Product 1)"] || 0) +
-          (item["Фабрика А (Product 2)"] || 0),
-        "Фабрика Б":
-          (item["Фабрика Б (Product 1)"] || 0) +
-          (item["Фабрика Б (Product 2)"] || 0),
-      }));
-    } else if (displayMode === "product1") {
-      return data.map((item) => ({
-        name: item.name,
-        "Фабрика А (Product 1)": item["Фабрика А (Product 1)"] || 0,
-        "Фабрика Б (Product 1)": item["Фабрика Б (Product 1)"] || 0,
-      }));
-    } else {
-      return data.map((item) => ({
-        name: item.name,
-        "Фабрика А (Product 2)": item["Фабрика А (Product 2)"] || 0,
-        "Фабрика Б (Product 2)": item["Фабрика Б (Product 2)"] || 0,
-      }));
-    }
-  };
+  const filteredData = getFilteredData(data, displayMode);
 
-  const filteredData = getFilteredData();
+  const maxValue = Math.max(
+    ...filteredData.flatMap(
+      (item) =>
+        Object.values(item).filter((v) => typeof v === "number") as number[]
+    )
+  );
 
   return (
     <Container>
@@ -128,32 +154,74 @@ const MainPage = () => {
           </Label>
         </Filter>
         <Graph>
-          <BarChart width={1150} height={600} data={filteredData}>
-            <CartesianGrid stroke="#ccc" />
-            <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
-            <YAxis domain={[0, (dataMax) => Math.ceil(dataMax * 1.1)]} />
-            <Tooltip
-              formatter={(value: number) => [`${value.toFixed(2)} т`, ""]}
-            />
-            <Legend />
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={filteredData}>
+              <CartesianGrid stroke="#ccc" />
+              <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
+              <YAxis
+                domain={[0, Math.ceil(maxValue * 1.1)]}
+                tickCount={6}
+                tickFormatter={(value) => `${value}`}
+                interval={0}
+                tick={{ fontSize: 12 }}
+                allowDecimals={false}
+                tickSize={5}
+                ticks={Array.from(
+                  {
+                    length:
+                      Math.ceil((maxValue * 1.1) / getNiceTickStep(maxValue)) +
+                      1,
+                  },
+                  (_, i) => i * getNiceTickStep(maxValue)
+                )}
+              />
+              <Tooltip
+                formatter={(value: number) => [`${value.toFixed(2)} т`, ""]}
+              />
+              <Legend />
 
-            {displayMode === "all" ? (
-              <>
-                <Bar dataKey="Фабрика А" fill="#8884d8" />
-                <Bar dataKey="Фабрика Б" fill="#ff7300" />
-              </>
-            ) : displayMode === "product1" ? (
-              <>
-                <Bar dataKey="Фабрика А (Product 1)" fill="#8884d8" />
-                <Bar dataKey="Фабрика Б (Product 1)" fill="#ff7300" />
-              </>
-            ) : (
-              <>
-                <Bar dataKey="Фабрика А (Product 2)" fill="#82ca9d" />
-                <Bar dataKey="Фабрика Б (Product 2)" fill="#ffc658" />
-              </>
-            )}
-          </BarChart>
+              {displayMode === "all" ? (
+                <>
+                  <Bar
+                    dataKey="Фабрика А"
+                    fill="#0d00ff"
+                    onClick={(data) => handleBarClick(data, "Фабрика А")}
+                  />
+                  <Bar
+                    dataKey="Фабрика Б"
+                    fill="#ff0000"
+                    onClick={(data) => handleBarClick(data, "Фабрика Б")}
+                  />
+                </>
+              ) : displayMode === "product1" ? (
+                <>
+                  <Bar
+                    dataKey="Фабрика А (Product 1)"
+                    fill="#8884d8"
+                    onClick={(data) => handleBarClick(data, "Фабрика А")}
+                  />
+                  <Bar
+                    dataKey="Фабрика Б (Product 1)"
+                    fill="#ff7300"
+                    onClick={(data) => handleBarClick(data, "Фабрика Б")}
+                  />
+                </>
+              ) : (
+                <>
+                  <Bar
+                    dataKey="Фабрика А (Product 2)"
+                    fill="#82ca9d"
+                    onClick={(data) => handleBarClick(data, "Фабрика А")}
+                  />
+                  <Bar
+                    dataKey="Фабрика Б (Product 2)"
+                    fill="#ffc658"
+                    onClick={(data) => handleBarClick(data, "Фабрика Б")}
+                  />
+                </>
+              )}
+            </BarChart>
+          </ResponsiveContainer>
         </Graph>
       </GraphContainer>
     </Container>
