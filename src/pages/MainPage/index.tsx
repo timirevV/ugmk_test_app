@@ -19,6 +19,7 @@ import {
 } from "../../interfaces";
 import { Container, Graph, Filter, GraphContainer, Label, Text } from "./style";
 import { getFilteredData, getNiceTickStep } from "../../utils/chartHelpers";
+import { BarRectangleItem } from "recharts/types/cartesian/Bar";
 
 const MainPage = () => {
   const [data, setData] = useState<ChartDataItem[]>([]);
@@ -39,8 +40,8 @@ const MainPage = () => {
     setDisplayMode(event.target.value as DisplayMode);
   };
 
-  const handleBarClick = (barData: any, factoryKey: string) => {
-    const monthName = barData.name;
+  const handleBarClick = (barData: BarRectangleItem, factoryKey: string) => {
+    const monthName = barData.name || "";
     const monthNumber = monthNames.indexOf(monthName) + 1;
 
     const fullEntry = data.find((d) => d.name === monthName);
