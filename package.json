@@ -22,7 +22,9 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "dockerize": "docker build -t ugmk_test_app .",
+    "start-container": "docker run --rm -p 3000:80 ugmk_test_app"
   },
   "eslintConfig": {
     "extends": [
