@@ -71,7 +71,7 @@ const MainPage = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch("http://localhost:3001/products");
+        const response = await fetch('https://json-server-tcxd.onrender.com/products');
         const products: Product[] = await response.json();
 
         const monthlyData: { [key: string]: MonthlyData } = {};
